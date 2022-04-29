@@ -39,11 +39,24 @@ process_fcs <-
 
     ## Try to remove doublets
     singlet_flow_frame <- get_singlets(bacteria_flow_frame)
-
+    
+    
+    ## Create the name of the output .fcs file --
+    # Modifies the head directory (assumed to be head data directory) to 'processed_data/'
+    # and appends -singlets before file extension
+    out_name <- # Replace head directory and add _processed before .fcs
+      stringr::str_replace_all(string = fcs_file,
+                               c("^[^/]*/" = "processed_data/",
+                                 ".fcs" = "_processed.fcs"))
+    
+    ## Create directory for the processed file
+    if(!dir.exists(dirname(out_name))) dir.create(dirname(out_name))
+    
+    ## Save the singlet data into a .fcs file in a new directory
     flowCore::write.FCS(x = singlet_flow_frame,
-                        filename = gsub(pattern = ".fcs",
-                                        replacement = "_processed.fcs",
-                                        x = fcs_file))
+                        filename = out_name)
+      # store the output file name to out_name ; and change the plot_trimming code to replace .fcs with .pdf only
+    # for compatibility with process_fcs_dir
 
     ##  Plot a grid of graphs showing the stages of trimming
     if (do_plot) {
@@ -54,7 +67,7 @@ process_fcs <-
         NA,
         NA,
         flu_channels,
-        fcs_file,
+        out_name,
         F,
         F
       )
@@ -114,9 +127,16 @@ process_fcs_dir <-
     }
 
     ## Create directory for processed flowFrames
-    if (!dir.exists(paste(dir_path, "processed", sep = "_"))) {
-      dir.create(paste(dir_path, "processed", sep = "_"), recursive = T)
-    }
+    out_dir_path <- # Replace head directory with "processed_data"
+      stringr::str_replace_all(string = dir_path,
+                               c("^[^/]*/" = "processed_data/"))
+    
+    ## Create directory for the processed file
+    if(!dir.exists(out_dir_path)) dir.create(out_dir_path)  
+    
+    # if (!dir.exists(paste(dir_path, "processed", sep = "_"))) {
+    #   dir.create(paste(dir_path, "processed", sep = "_"), recursive = T)
+    # }
 
     if (calibrate) {
       ## First step is to get calibration standard curves
@@ -237,11 +257,21 @@ process_fcs_dir <-
       summarised_data <- rbind(summarised_data, summarise_data(out_flow_frame, flu_channels))
 
       ## Save processed flowFrames to a new folder
-      out_name <-
-        paste(dirname(next_fcs),
-              "_processed/",
-              basename(next_fcs),
-              sep = "")
+      
+      # out_name <-
+      #   paste(dirname(next_fcs),
+      #         "_processed/",
+      #         basename(next_fcs),
+      #         sep = "")
+      
+      out_name <- # Replace head directory and add _processed before .fcs
+        stringr::str_replace_all(string = next_fcs,
+                                 c("^[^/]*/" = "processed_data/",
+                                   ".fcs" = "_processed.fcs"))
+      
+      ## Create directory for the processed file
+      if(!dir.exists(dirname(out_name))) dir.create(dirname(out_name))
+      
       flowCore::write.FCS(out_flow_frame, out_name)
 
       ##  Plot a grid of graphs showing the stages of trimming
@@ -259,9 +289,9 @@ process_fcs_dir <-
         )
       }
     }
-    utils::write.csv(summarised_data, file = paste(dirname(next_fcs),
-                                                   "_processed/data_summary.csv",
-                                                   sep = ""))
+    utils::write.csv(summarised_data, file = paste(out_dir_path,
+                                                   "data_summary.csv",
+                                                   sep = "/"))
   }
 
 
@@ -355,10 +385,17 @@ get_calibration <-
 
     bead_frame <- flowCore::read.FCS(bead_file, emptyValue = F)
 
-    out_name <- paste(dirname(bead_file),
-                      "_processed/",
-                      basename(unlist(strsplit(bead_file, split = "[.]"))[1]),
-                      sep = "")
+    # out_name <- paste(dirname(bead_file),
+    #                   "_processed/",
+    #                   basename(unlist(strsplit(bead_file, split = "[.]"))[1]),
+    #                   sep = "")
+    
+    ## Create the name of the output .fcs file --
+    out_name <- # Replace head directory and add _processed before .fcs
+      stringr::str_replace_all(string = bead_file,
+                               c("^[^/]*/" = "processed_data/",
+                                 ".fcs" = "_processed.fcs"))
+    
 
     ## default peak positions if none provided
     if (is.na(mef_peaks)) {
@@ -789,7 +826,7 @@ to_mef <-
 #' removed
 #' @param flu_channels a vector of strings of the fluorescence channels to keep
 #' in the processed data and plotting. Defaults to "BL1-H".
-#' @param out_name the filename for the outputted \code{flowFrame}
+#' @param out_fcs_name the filename for the outputted \code{flowFrame}
 #' @param normalised a Boolean flag to determine whether to normalise
 #' @param calibrate a Boolean flag to determine whether to convert fluorescence
 #' to MEF values. Requires an .fcs file with named \code{"*beads*.fcs"}.
@@ -802,7 +839,7 @@ plot_trimming <-
            normalised_flow_frame,
            calibrated_flow_frame,
            flu_channels,
-           out_name,
+           out_fcs_name,
            normalised,
            calibrate) {
     ##  This function allows us to take a legend from a plot
@@ -1070,14 +1107,9 @@ plot_trimming <-
       flowCore::identifier(flow_frame)
     ))
 
-    ggplot2::ggsave(
-      filename = paste(
-        dirname(out_name),
-        gsub(".fcs",
-             "_processed.pdf",
-             basename(out_name)),
-        sep = "/"
-      ),
+    ggplot2::ggsave( # replace top directory and file extension
+      filename = stringr::str_replace_all(string = out_fcs_name,
+                                          c(".fcs" = ".pdf")),
       plot = plt,
       width = 150,
       height = 50 * ceiling((length(plts) / 3)) + 20,
